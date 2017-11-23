@@ -37,6 +37,7 @@ uses
   DateUtils,
   Classes
 {$IFNDEF SUPPORTS_TARRAY}, Types{$ENDIF}
+{$IFDEF SUPPORTS_TDICTIONARY}, System.Generics.Collections{$ELSE}, Contnrs{$ENDIF}
 {$IFDEF SUPPORTS_TTIMESPAN}, TimeSpan{$ENDIF};
 
 
@@ -62,12 +63,17 @@ type
   ///  is not present in the bundled database or that its format is invalid.</summary>
   ETimeZoneInvalid = class(Exception);
 
+  TCompiledPeriodList = class({$IFDEF SUPPORTS_TDICTIONARY}TObjectList<TObject>{$ELSE}TObjectList{$ENDIF})
+  public
+    procedure SortByUntil;
+  end;
+
   ///  <summary>A timezone class implementation that retreives its data from the bundled database.</summary>
   ///  <remarks>This class inherits the standard <c>TTimeZone</c> class in Delphi XE.</remarks>
   TBundledTimeZone = class{$IFDEF SUPPORTS_TTIMEZONE}(TTimeZone){$ENDIF}
   private
     FZone: Pointer;         { PZone }
-    FPeriods: TList;        { TCompiledPeriod }
+    FPeriods: TCompiledPeriodList;        { TCompiledPeriod }
 
     { Compile periods into something useful }
     procedure CompilePeriods;
@@ -218,7 +224,6 @@ uses
 {$IFNDEF SUPPORTS_MONITOR}
   SyncObjs,
 {$ENDIF}
-  Contnrs,
   IniFiles;
 
 resourcestring
@@ -407,7 +412,45 @@ begin
     Result := APeriod^.FFmtStr;
 end;
 
+{$IFDEF SUPPORTS_TDICTIONARY}
 type
+  TBucketProc = procedure (AInfo, AItem, AData: Pointer; out AContinue: Boolean);
+
+  TBucketList = class(TDictionary<pointer, pointer>)
+  public
+    function ForEach(AProc: TBucketProc; AInfo: Pointer = nil): Boolean;
+    function Find(AItem: Pointer; out AData: Pointer): Boolean;
+  end;
+
+{ TBucketList }
+
+function TBucketList.ForEach(AProc: TBucketProc; AInfo: Pointer = nil): Boolean;
+var
+  pair : TPair<pointer, pointer>;
+begin
+  for pair in Self do begin
+    AProc(AInfo, pair.Key, pair.Value, Result);
+    if not Result then
+      Exit;
+  end;
+end;
+
+function TBucketList.Find(AItem: Pointer; out AData: Pointer): Boolean;
+begin
+  Result := TryGetValue(AItem, AData);
+end;
+
+{$ENDIF}
+
+type
+  TCompiledRule = class;
+  TCompiledPeriod = class;
+
+  TCompiledRuleList = class({$IFDEF SUPPORTS_TDICTIONARY}TObjectList<TCompiledRule>{$ELSE}TObjectList{$ENDIF})
+  public
+    procedure SortByCompiledRuleDate;
+  end;
+
   { Contains a compiled rule }
   TCompiledRule = class
   private
@@ -439,7 +482,7 @@ type
     function GetLastRuleForYear(const AYear: Word): PRule;
 
     { Compiles the Rules for a given year }
-    function CompileRulesForYear(const AYear: Word): TList;  { TCompiledRule }
+    function CompileRulesForYear(const AYear: Word): TCompiledRuleList;
   public
     { Basic stuffs }
     constructor Create(const APeriod: PPeriod; const AFrom, AUntil: TDateTime);
@@ -476,9 +519,20 @@ begin
   AContinue := True;
 end;
 
+{ TCompiledPeriodList }
+
+procedure TCompiledPeriodList.SortByUntil;
+  begin
+{$IFDEF SUPPORTS_TDICTIONARY}
+
+{$ELSE}
+  Sort(@CompiledPeriodComparison);
+{$ENDIF}
+end;
+
 { TCompiledPeriod }
 
-function TCompiledPeriod.CompileRulesForYear(const AYear: Word): TList;
+function TCompiledPeriod.CompileRulesForYear(const AYear: Word): TCompiledRuleList;
 var
   LCurrRule: PYearBoundRule;
   LLastYearRule: PRule;
@@ -486,7 +540,7 @@ var
   I: Integer;
 begin
   { Initialize the compiled list }
-  Result := TObjectList.Create(true);
+  Result := TCompiledRuleList.Create(true);
 
   { Check whether we actually have a fule family attached }
   if FPeriod^.FRuleFamily <> nil then
@@ -532,7 +586,7 @@ begin
     end;
 
     { Sort the list ascending by the activation date/time }
-    Result.Sort(@CompiledRuleComparison);
+    Result.SortByCompiledRuleDate;
 
     { Create a linked list based on offsets and their nexts (will be used on type getting) }
     for I := 0 to Result.Count - 1 do
@@ -589,7 +643,7 @@ end;
 function TCompiledPeriod.FindMatchingRule(const ADateTime: TDateTime): TCompiledRule;
 var
   LYear: Word;
-  LCompiledList: TList;
+  LCompiledList: TCompiledRuleList;
   I, LCompResult: Integer;
 begin
   Result := nil;
@@ -663,6 +717,17 @@ begin
     { Go to next rule }
     Inc(LCurrRule);
   end;
+end;
+
+{ TCompiledRuleList }
+
+procedure TCompiledRuleList.SortByCompiledRuleDate;
+begin
+{$IFDEF SUPPORTS_TDICTIONARY}
+
+{$ELSE}
+  Sort(@CompiledRuleComparison);
+{$ENDIF}
 end;
 
 { TCompiledRule }
@@ -748,7 +813,7 @@ begin
   end;
 
   { Sort the list ascending }
-  FPeriods.Sort(@CompiledPeriodComparison);
+  FPeriods.SortByUntil;
 end;
 
 constructor TBundledTimeZone.Create(const ATimeZoneID: string);
@@ -777,7 +842,7 @@ begin
     raise ETimeZoneInvalid.CreateResFmt(@SNoBundledTZForName, [ATimeZoneID]);
 
   { Initialize internals }
-  FPeriods := TObjectList.Create(true);
+  FPeriods := TCompiledPeriodList.Create(true);
   CompilePeriods();
 end;
 
