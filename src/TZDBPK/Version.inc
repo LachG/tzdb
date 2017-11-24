@@ -21,7 +21,6 @@
     {$IF DECLARED(RTLVersion)}
       {$IF RTLVersion >= 20}
         {$DEFINE SUPPORTS_MONITOR}
-        {$DEFINE SUPPORTS_TSTRINGS_OWNSOBJECTS}
       {$IFEND}
       {$IF RTLVersion >= 21}
         {$DEFINE SUPPORTS_TTIMESPAN}

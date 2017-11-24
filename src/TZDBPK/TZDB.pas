@@ -935,19 +935,6 @@ begin
     end;
 end;
 
-{$IFNDEF SUPPORTS_TSTRINGS_OWNSOBJECTS}
-procedure FreeStringListObjects(const AStrings: TStrings);
-var
-  LCurrent: Integer;
-begin
-  for LCurrent := 0 to AStrings.Count - 1 do
-  begin
-    AStrings.Objects[LCurrent].Free;
-    AStrings.Objects[LCurrent] := nil;
-  end;
-end;
-{$ENDIF}
-
 initialization
   { Create a lock for the time zone hash }
 {$IFNDEF SUPPORTS_MONITOR}
@@ -956,17 +943,12 @@ initialization
 
   { Use THashedStringList for fast lookup. Also set ows objects to true. }
   FTimeZoneCache := THashedStringList.Create();
-{$IFDEF SUPPORTS_TSTRINGS_OWNSOBJECTS}
   FTimeZoneCache.OwnsObjects := True;
-{$ENDIF}
   FTimeZoneCache.CaseSensitive := False;
 
 finalization
 {$IFNDEF SUPPORTS_MONITOR}
   FTimeZoneCacheLock.Free;
-{$ENDIF}
-{$IFNDEF SUPPORTS_TSTRINGS_OWNSOBJECTS}
-  FreeStringListObjects(FTimeZoneCache);
 {$ENDIF}
   FTimeZoneCache.Free;
 
