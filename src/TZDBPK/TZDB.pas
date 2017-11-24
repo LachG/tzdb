@@ -38,27 +38,10 @@ uses
   Classes
 {$IFNDEF SUPPORTS_TARRAY}, Types{$ENDIF}
 {$IFDEF SUPPORTS_TDICTIONARY}, System.Generics.Collections{$ELSE}, Contnrs{$ENDIF}
-{$IFDEF SUPPORTS_TTIMESPAN}, TimeSpan{$ENDIF};
+  , TimeSpan;
 
 
 type
-{$IFNDEF SUPPORTS_TTIMEZONE}
-  ///  <summary>Exception thrown when the passed local time is invalid.</summary>
-  ELocalTimeInvalid = class(Exception);
-
-  ///  <summary>Defines four types that a local date/time type can be in.</summary>
-  TLocalTimeType = (
-    ///  <summary>The local time is in the Standard year period.</summary>
-    lttStandard,
-    ///  <summary>The local time is in the DST year period.</summary>
-    lttDaylight,
-    ///  <summary>The local time is in DST -> Standard year period.</summary>
-    lttAmbiguous,
-    ///  <summary>The local time is in the Standard -> DST year period.</summary>
-    lttInvalid
-  );
-{$ENDIF}
-
   ///  <summary>Exception type used to signal the caller code that a requested time zone
   ///  is not present in the bundled database or that its format is invalid.</summary>
   ETimeZoneInvalid = class(Exception);
@@ -70,7 +53,7 @@ type
 
   ///  <summary>A timezone class implementation that retreives its data from the bundled database.</summary>
   ///  <remarks>This class inherits the standard <c>TTimeZone</c> class in Delphi XE.</remarks>
-  TBundledTimeZone = class{$IFDEF SUPPORTS_TTIMEZONE}(TTimeZone){$ENDIF}
+  TBundledTimeZone = class(TTimeZone)
   private
     FZone: Pointer;         { PZone }
     FPeriods: TCompiledPeriodList;        { TCompiledPeriod }
@@ -84,18 +67,7 @@ type
     procedure GetTZData(const ADateTime: TDateTime; out AOffset,
       ADstSave: Int64; out AType: TLocalTimeType; out ADisplayName, ADstDisplayName: string);
 
-{$IFNDEF SUPPORTS_TTIMEZONE}
-    { Purely internal getters }
-    function GetCurrentAbbreviation: string;
-    function GetCurrentDisplayName: string;
-    function GetCurrentUtcOffset: {$IFDEF SUPPORTS_TTIMESPAN}TTimeSpan{$ELSE}Int64{$ENDIF};
-
-    { Other good stuff }
-    function GetUtcOffsetInternal(const ADateTime: TDateTime; const ForceDaylight: Boolean = false): Int64;
-{$ENDIF}
-
   protected
-{$IFDEF SUPPORTS_TTIMEZONE}
     ///  <summary>Retrieves the standard bias, DST bias and the type of the given local time.</summary>
     ///  <param name="ADateTime">The local time for which to retrieve the data.</param>
     ///  <param name="AOffset">The returned standard bias of the time zone for the given time.</param>
@@ -112,11 +84,10 @@ type
     ///  is whithin the ambiguous period.</param>
     ///  <returns>The display name used to accompany the given local time.</returns>
     function DoGetDisplayName(const ADateTime: TDateTime; const ForceDaylight: Boolean): string; override;
-{$ENDIF}
 
     ///  <summary>Returns the ID of the timezone. An ID is a string that should uniquely identify the timezone.</summary>
     ///  <returns>The ID of the timezone.</returns>
-    function DoGetID: string; {$IFDEF SUPPORTS_TTIMEZONE}override;{$ENDIF}
+    function DoGetID: string; override;
    public
     ///  <summary>Creates a new instance of this timezone class.</summary>
     ///  <param name="ATimeZoneID">The ID of the timezone to use (ex. "Europe/Bucharest").</param>
@@ -136,86 +107,6 @@ type
     ///  <param name="ATimeZoneID">The ID of the timezone to use (ex. "Europe/Bucharest").</param>
     ///  <exception cref="TZDB|ETimeZoneInvalid">The specified ID cannot be found in the bundled database.</exception>
     class function GetTimeZone(const ATimeZoneID: string): TBundledTimeZone;
-
-{$IFNDEF SUPPORTS_TTIMEZONE}
-    ///  <summary>Generates an abbreviation string for the given local time.</summary>
-    ///  <param name="ADateTime">The local time.</param>
-    ///  <param name="AForceDaylight">Specify a <c>True</c> value if ambiguous periods should be treated as DST.</param>
-    ///  <returns>A string containing the abbreviation.</returns>
-    ///  <exception cref="TZDB|ELocalTimeInvalid">The specified local time is invalid.</exception>
-    function GetAbbreviation(const ADateTime: TDateTime; const AForceDaylight: Boolean = false): string;
-
-    ///  <summary>Generates a diplay string for the given local time.</summary>
-    ///  <param name="ADateTime">The local time.</param>
-    ///  <param name="AForceDaylight">Specify a <c>True</c> value if ambiguous periods should be treated as DST.</param>
-    ///  <returns>A string containing the display name.</returns>
-    ///  <exception cref="TZDB|ELocalTimeInvalid">The specified local time is invalid.</exception>
-    function GetDisplayName(const ADateTime: TDateTime; const AForceDaylight: Boolean = false): string;
-
-    ///  <summary>Returns the type of the local time.</summary>
-    ///  <param name="ADateTime">The local time.</param>
-    ///  <returns>An enumeration value specifying the type of the local time.</returns>
-    function GetLocalTimeType(const ADateTime: TDateTime): TLocalTimeType; {$IFDEF SUPPORTS_INLINE}inline;{$ENDIF}
-
-    ///  <summary>Checks whether the specified local time is ambiguous.</summary>
-    ///  <param name="ADateTime">The local time.</param>
-    ///  <returns><c>True</c> if the local time is ambiguous; <c>False</c> otherwise.</returns>
-    function IsAmbiguousTime(const ADateTime: TDateTime): Boolean; {$IFDEF SUPPORTS_INLINE}inline;{$ENDIF}
-
-    ///  <summary>Checks whether the specified local time is daylight.</summary>
-    ///  <param name="ADateTime">The local time.</param>
-    ///  <param name="AForceDaylight">Specify a <c>True</c> value if ambiguous periods should be treated as DST.</param>
-    ///  <returns><c>True</c> if the local time is ambiguous; <c>False</c> otherwise.</returns>
-    function IsDaylightTime(const ADateTime: TDateTime; const AForceDaylight: Boolean = false): Boolean;
-
-    ///  <summary>Checks whether the specified local time is invalid.</summary>
-    ///  <param name="ADateTime">The local time.</param>
-    ///  <returns><c>True</c> if the local time is invalid; <c>False</c> otherwise.</returns>
-    function IsInvalidTime(const ADateTime: TDateTime): Boolean; {$IFDEF SUPPORTS_INLINE}inline;{$ENDIF}
-
-    ///  <summary>Checks whether the specified local time is standard.</summary>
-    ///  <param name="ADateTime">The local time.</param>
-    ///  <param name="AForceDaylight">Specify a <c>True</c> value if ambiguous periods should be treated as DST.</param>
-    ///  <returns><c>True</c> if the local time is standard; <c>False</c> otherwise.</returns>
-    function IsStandardTime(const ADateTime: TDateTime; const AForceDaylight: Boolean = false): Boolean;
-
-    ///  <summary>Returns the UTC offset of the given local time.</summary>
-    ///  <param name="ADateTime">The local time.</param>
-    ///  <param name="AForceDaylight">Specify a <c>True</c> value if ambiguous periods should be treated as DST.</param>
-    ///  <returns>The UTC offset of the given local time. Subtract this value from the passed local time to obtain an UTC time.</returns>
-    ///  <exception cref="TZDB|ELocalTimeInvalid">The specified local time is invalid.</exception>
-    function GetUtcOffset(const ADateTime: TDateTime; const AForceDaylight: Boolean = false):
-      {$IFDEF SUPPORTS_TTIMESPAN}TTimeSpan{$ELSE}Int64{$ENDIF}; {$IFDEF SUPPORTS_INLINE}inline;{$ENDIF}
-
-    ///  <summary>Converts an UTC time to a local time.</summary>
-    ///  <param name="ADateTime">The UTC time.</param>
-    ///  <returns>The local time that corresponds to the passed UTC time.</returns>
-    function ToLocalTime(const ADateTime: TDateTime): TDateTime;
-
-    ///  <summary>Converts a local time to an UTC time.</summary>
-    ///  <param name="ADateTime">The local time.</param>
-    ///  <param name="AForceDaylight">Specify a <c>True</c> value if ambiguous periods should be treated as DST.</param>
-    ///  <returns>The UTC time that corresponds to the passed local time.</returns>
-    ///  <exception cref="TZDB|ELocalTimeInvalid">The specified local time is invalid.</exception>
-    function ToUniversalTime(const ADateTime: TDateTime;
-      const AForceDaylight: Boolean = false): TDateTime; {$IFDEF SUPPORTS_INLINE}inline;{$ENDIF}
-
-    ///  <summary>Returns the ID of the timezone. An ID is a string that should uniquely identify the timezone.</summary>
-    ///  <returns>The ID of the timezone.</returns>
-    property ID: string read DoGetID;
-
-    ///  <summary>Returns the current time zone's display name string.</summary>
-    ///  <returns>A string containing the display name.</returns>
-    property DisplayName: string read GetCurrentDisplayName;
-
-    ///  <summary>Returns the current time zone's abbreviation string.</summary>
-    ///  <returns>A string containing the abbreviation.</returns>
-    property Abbreviation: string read GetCurrentAbbreviation;
-
-    ///  <summary>Returns the current time zone's UTC offset.</summary>
-    ///  <returns>The current UTC offset.</returns>
-    property UtcOffset: {$IFDEF SUPPORTS_TTIMESPAN}TTimeSpan{$ELSE}Int64{$ENDIF} read GetCurrentUtcOffset;
-{$ENDIF}
   end;
 
 implementation
@@ -230,10 +121,6 @@ resourcestring
   SNoBundledTZForName = 'Could not find any data for timezone "%s".';
   STimeZoneHasNoPeriod =
     'There is no matching period that matches date [%s] in timezone "%s".';
-
-{$IFNDEF SUPPORTS_TTIMEZONE}
-  SInvalidLocalTime = 'Local date/time value %s is invalid (does not exist in the time zone).';
-{$ENDIF}
 
 type
   { Day type. Specifies the "relative" day in a month }
@@ -852,7 +739,6 @@ begin
   inherited;
 end;
 
-{$IFDEF SUPPORTS_TTIMEZONE}
 function TBundledTimeZone.DoGetDisplayName(const ADateTime: TDateTime; const ForceDaylight: Boolean): string;
 var
   LOffset, LDstSave: Int64;
@@ -880,203 +766,12 @@ begin
   { Call the mega-utility method }
   GetTZData(ADateTime, AOffset, ADstSave, AType, LDummy, LDummy2);
 end;
-{$ENDIF}
 
 function TBundledTimeZone.DoGetID: string;
 begin
   { Get the Id of the time zone from the stored var }
   Result := PZone(FZone)^.FName;
 end;
-
-{$IFNDEF SUPPORTS_TTIMEZONE}
-function TBundledTimeZone.GetAbbreviation(const ADateTime: TDateTime; const AForceDaylight: Boolean): string;
-const
-  CGMT = 'GMT';
-  CMinus = '-';
-  CPlus = '+';
-  CSemi = ':';
-  CDigitFmt = '%.2d';
-
-  function FmtPart(const APart: Word): string;
-  begin
-    Result := Format(CDigitFmt, [APart]);
-  end;
-
-var
-  LOffset, LHours, LMinutes, LSeconds: Int64;
-begin
-  { Get the UTC offset for the given time. }
-  LOffset := GetUtcOffsetInternal(ADateTime, AForceDaylight);
-
-  { Start with GMT }
-  Result := CGMT;
-
-  { Nothing for zero offset }
-  if LOffset = 0 then
-    Exit;
-
-  { Calculate the hh:mm:ss parts }
-  LSeconds := Abs(LOffset);
-  LHours := LSeconds div (SecsPerMin * MinsPerHour); Dec(LSeconds, LHours * SecsPerMin * MinsPerHour);
-  LMinutes := LSeconds div SecsPerMin; Dec(LSeconds, LMinutes * SecsPerMin);
-
-  { Add the sign }
-  if LOffset < 0 then
-    Result := Result + CMinus
-  else
-    Result := Result + CPlus;
-
-  { And now add the remaining pieces }
-  Result := Result + FmtPart(LHours);
-  if (LMinutes <> 0) or (LSeconds <> 0) then
-    Result := Result + CSemi + FmtPart(LMinutes);
-  if LSeconds <> 0 then
-    Result := Result + CSemi + FmtPart(LSeconds);
-end;
-
-function TBundledTimeZone.GetCurrentAbbreviation: string;
-begin
-  { Call GetAbbreviation for current local time. }
-  Result := GetAbbreviation(Now);
-end;
-
-function TBundledTimeZone.GetCurrentDisplayName: string;
-begin
-  { Call GetDisplayName for current local time. }
-  Result := GetDisplayName(Now);
-end;
-
-function TBundledTimeZone.GetCurrentUtcOffset: {$IFDEF SUPPORTS_TTIMESPAN}TTimeSpan{$ELSE}Int64{$ENDIF};
-begin
-  { Call GetUtcOffset for current local time. }
-  Result := GetUtcOffset(Now);
-end;
-
-function TBundledTimeZone.GetDisplayName(const ADateTime: TDateTime; const AForceDaylight: Boolean): string;
-var
-  LOffset, LDstSave: Int64;
-  LTimeType: TLocalTimeType;
-  LStd, LDst: string;
-begin
-  { Call the mega-utility method }
-  GetTZData(ADateTime, LOffset, LDstSave, LTimeType, LStd, LDst);
-
-  { It's a bit unclear naming here. LStd is not always the standard name. It's the "standard output" string. LDst
-    only makes sense if the type of the local time if ambiguous. }
-  if LTimeType = lttInvalid then
-    raise ELocalTimeInvalid.CreateResFmt(@SInvalidLocalTime, [DateTimeToStr(ADateTime)])
-  else if (LTimeType = lttAmbiguous) and AForceDaylight then
-    Result := LDst
-  else
-    Result := LStd;
-end;
-
-function TBundledTimeZone.GetLocalTimeType(const ADateTime: TDateTime): TLocalTimeType;
-var
-  LOffset, LDstSave: Int64; // Dummy
-  LStd, LDst: string;       // Dummy
-begin
-  { Call the mega-utility method }
-  GetTZData(ADateTime, LOffset, LDstSave, Result, LStd, LDst);
-end;
-
-function TBundledTimeZone.GetUtcOffset(const ADateTime: TDateTime; const AForceDaylight: Boolean):
-  {$IFDEF SUPPORTS_TTIMESPAN}TTimeSpan{$ELSE}Int64{$ENDIF};
-begin
-{$IFDEF SUPPORTS_TTIMESPAN}
-  { Call the internal helper and generate a TTimeSpan out of it }
-  Result := TTimeSpan.FromSeconds(
-    GetUtcOffsetInternal(ADateTime, AForceDaylight)
-  );
-{$ELSE}
-  { Call internal method directly if no TTimeSpan is available }
-  Result := GetUtcOffsetInternal(ADateTime, AForceDaylight);
-{$ENDIF}
-end;
-
-function TBundledTimeZone.GetUtcOffsetInternal(const ADateTime: TDateTime; const ForceDaylight: Boolean): Int64;
-var
-  LDstSave: Int64;
-  LTimeType: TLocalTimeType;
-  LStd, LDst: string; // Dummy!
-begin
-  { Get all the expected data for this local time }
-  GetTZData(ADateTime, Result, LDstSave, LTimeType, LStd, LDst);
-
-  { And properly calculate teh offsets }
-  if (LTimeType = lttInvalid) then
-    raise ELocalTimeInvalid.CreateResFmt(@SInvalidLocalTime, [DateTimeToStr(ADateTime)])
-  else if (LTimeType = lttDaylight) or ((LTimeType = lttAmbiguous) and ForceDaylight) then
-    Inc(Result, LDSTSave);
-end;
-
-function TBundledTimeZone.IsAmbiguousTime(const ADateTime: TDateTime): Boolean;
-begin
-  { Call GetLocalTimeType and check the result for lttInvalid }
-  Result := GetLocalTimeType(ADateTime) = lttAmbiguous;
-end;
-
-function TBundledTimeZone.IsDaylightTime(const ADateTime: TDateTime; const AForceDaylight: Boolean): Boolean;
-var
-  LType: TLocalTimeType;
-begin
-  { Call GetLocalTimeType and store the result }
-  LType := GetLocalTimeType(ADateTime);
-
-  { If the type is daylight or ambiguous with forcing set to on. }
-  Result := (LType = lttDaylight) or
-    ((LType = lttAmbiguous) and AForceDaylight);
-end;
-
-function TBundledTimeZone.IsInvalidTime(const ADateTime: TDateTime): Boolean;
-begin
-  { Call GetLocalTimeType and check the result for lttInvalid }
-  Result := GetLocalTimeType(ADateTime) = lttInvalid;
-end;
-
-function TBundledTimeZone.IsStandardTime(const ADateTime: TDateTime; const AForceDaylight: Boolean): Boolean;
-var
-  LType: TLocalTimeType;
-begin
-  { Call GetLocalTimeType and store the result }
-  LType := GetLocalTimeType(ADateTime);
-
-  { If the type is standard or ambiguous with forcing set to off. }
-  Result := (LType = lttStandard) or
-    ((LType = lttAmbiguous) and not AForceDaylight);
-end;
-
-function TBundledTimeZone.ToLocalTime(const ADateTime: TDateTime): TDateTime;
-var
-  LBias, LDstSave: Int64;
-  LTimeType: TLocalTimeType;
-  LStd, LDst: string; // Dummy!
-  LAdjusted: TDateTime;
-begin
-  { Get all the expected data for this UTC time. }
-  GetTZData(ADateTime, LBias, LDstSave, LTimeType, LStd, LDst);
-
-  { Create a new date-time adjusted by the standard bias. Now, we might have landed into an
-    invalid yer period or an ambiguous year period. We will check for that and adjust properly. }
-  LAdjusted := IncSecond(ADateTime, LBias);
-
-  { Get all the expected data for the adjust UTC (now local) time. }
-  GetTZData(LAdjusted, LBias, LDstSave, LTimeType, LStd, LDst);
-
-  { If we have indeed landed into the 2 nasty periods, simply add the DST save so we can get into the safe zone. }
-  if (LTimeType = lttInvalid) or (LTimeType = lttDaylight) then
-    Result := IncSecond(LAdjusted, LDSTSave)
-  else
-    Result := LAdjusted;
-end;
-
-function TBundledTimeZone.ToUniversalTime(const ADateTime: TDateTime; const AForceDaylight: Boolean): TDateTime;
-begin
-  { Very simple, get the UTC offset for the local time and decrement it to get to UTC }
-  Result := IncSecond(ADateTime,
-    -GetUtcOffsetInternal(ADateTime, AForceDaylight));
-end;
-{$ENDIF}
 
 function TBundledTimeZone.GetPeriodAndRule(const ADateTime: TDateTime; out APeriod: TObject; out ARule: TObject): Boolean;
 var
