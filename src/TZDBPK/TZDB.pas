@@ -515,12 +515,7 @@ begin
   { Free each rule }
   if Assigned(FRulesByYear) then
   begin
-{$IFDEF FPC}
-    FRulesByYear.ForEach(@ForEachYearlyRule);
-{$ELSE}
     FRulesByYear.ForEach(ForEachYearlyRule);
-{$ENDIF}
-
     FRulesByYear.Free;
   end;
 
