@@ -24,7 +24,6 @@
         {$DEFINE SUPPORTS_TSTRINGS_OWNSOBJECTS}
       {$IFEND}
       {$IF RTLVersion >= 21}
-        {$DEFINE SUPPORTS_TARRAY}
         {$DEFINE SUPPORTS_TTIMESPAN}
       {$IFEND}
       {$IF RTLVersion >= 22}

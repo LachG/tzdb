@@ -36,7 +36,7 @@ uses
   SysUtils,
   DateUtils,
   Classes
-{$IFNDEF SUPPORTS_TARRAY}, Types{$ENDIF}
+  , Types
 {$IFDEF SUPPORTS_TDICTIONARY}, System.Generics.Collections{$ELSE}, Contnrs{$ENDIF}
   , TimeSpan;
 
@@ -101,7 +101,7 @@ type
     ///  <param name="AIncludeAliases">Pass <c>True</c> to include time zone aliases into the list.</param>
     ///  <returns>An array of strings representing the IDs of the known time zones.</returns>
     class function KnownTimeZones(const
-      AIncludeAliases: Boolean = False): {$IFDEF SUPPORTS_TARRAY}TArray<string>{$ELSE}TStringDynArray{$ENDIF};
+      AIncludeAliases: Boolean = False): TArray<string>;
 
     ///  <summary>Returns an instance of this time zone class.</summary>
     ///  <param name="ATimeZoneID">The ID of the timezone to use (ex. "Europe/Bucharest").</param>
@@ -908,7 +908,7 @@ begin
 end;
 
 class function TBundledTimeZone.KnownTimeZones(const AIncludeAliases: Boolean): 
-  {$IFDEF SUPPORTS_TARRAY}TArray<string>{$ELSE}TStringDynArray{$ENDIF};
+  TArray<string>;
 var
   I, LIndex: Integer;
 begin
