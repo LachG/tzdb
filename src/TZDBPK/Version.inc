@@ -12,9 +12,6 @@
     {$IFEND}
 
     {$IF DECLARED(RTLVersion)}
-      {$IF RTLVersion >= 20}
-        {$DEFINE SUPPORTS_MONITOR}
-      {$IFEND}
       {$IF RTLVersion >= 21}
         {$DEFINE SUPPORTS_TTIMESPAN}
       {$IFEND}

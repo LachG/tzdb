@@ -112,9 +112,6 @@ type
 implementation
 
 uses
-{$IFNDEF SUPPORTS_MONITOR}
-  SyncObjs,
-{$ENDIF}
   IniFiles;
 
 resourcestring
@@ -359,9 +356,6 @@ type
     FPeriod: PPeriod;
     FFrom, FUntil: TDateTime;
 
-{$IFNDEF SUPPORTS_MONITOR}
-    FRulesByYearLock: TCriticalSection;
-{$ENDIF}
     { Year -> List of Rules for that year }
     FRulesByYear: TBucketList;  { Word, TList<TCompiledRule> }
 
@@ -380,9 +374,6 @@ type
   end;
 
 var
-{$IFNDEF SUPPORTS_MONITOR}
-  FTimeZoneCacheLock: TCriticalSection;
-{$ENDIF}
   FTimeZoneCache: TStringList; { <String, TBundledTimeZone> }
 
 function CompiledPeriodComparison(ALeft, ARight: Pointer): Integer;
@@ -500,18 +491,11 @@ begin
   FUntil := AUntil;
   FFrom := AFrom;
 
-{$IFNDEF SUPPORTS_MONITOR}
-  FRulesByYearLock := TCriticalSection.Create;
-{$ENDIF}
   FRulesByYear := TBucketList.Create();
 end;
 
 destructor TCompiledPeriod.Destroy;
 begin
-{$IFNDEF SUPPORTS_MONITOR}
-  FRulesByYearLock.Free;
-{$ENDIF}
-
   { Free each rule }
   if Assigned(FRulesByYear) then
   begin
@@ -532,11 +516,7 @@ begin
   LYear := YearOf(ADateTime);
 
   { Protect this part of the code since it may change internal structures over time }
-{$IFDEF SUPPORTS_MONITOR}
   MonitorEnter(FRulesByYear);
-{$ELSE}
-  FRulesByYearLock.Enter();
-{$ENDIF}
   try
 {$WARNINGS OFF}
     { Check if we have a cached list of matching rules for this date's year }
@@ -554,11 +534,7 @@ begin
         Result := TCompiledRule(LCompiledList[I]);
     end;
   finally
-{$IFDEF SUPPORTS_MONITOR}
     MonitorExit(FRulesByYear);
-{$ELSE}
-    FRulesByYearLock.Leave();
-{$ENDIF}
   end;
 end;
 
@@ -803,11 +779,7 @@ var
   LIndex: Integer;
 begin
   { Access the cache }
-{$IFDEF SUPPORTS_MONITOR}
   MonitorEnter(FTimeZoneCache);
-{$ELSE}
-  FTimeZoneCacheLock.Enter();
-{$ENDIF}
   try
     { Check if we know this TZ }
     LIndex := FTimeZoneCache.IndexOf(ATimeZoneID);
@@ -831,11 +803,7 @@ begin
       Result := TBundledTimeZone(FTimeZoneCache.Objects[LIndex]);
 
   finally
-{$IFDEF SUPPORTS_MONITOR}
-  MonitorExit(FTimeZoneCache);
-{$ELSE}
-  FTimeZoneCacheLock.Leave();
-{$ENDIF}
+    MonitorExit(FTimeZoneCache);
   end;
 end;
 
@@ -931,20 +899,12 @@ begin
 end;
 
 initialization
-  { Create a lock for the time zone hash }
-{$IFNDEF SUPPORTS_MONITOR}
-  FTimeZoneCacheLock := TCriticalSection.Create();
-{$ENDIF}
-
   { Use THashedStringList for fast lookup. Also set ows objects to true. }
   FTimeZoneCache := THashedStringList.Create();
   FTimeZoneCache.OwnsObjects := True;
   FTimeZoneCache.CaseSensitive := False;
 
 finalization
-{$IFNDEF SUPPORTS_MONITOR}
-  FTimeZoneCacheLock.Free;
-{$ENDIF}
   FTimeZoneCache.Free;
 
 end.
