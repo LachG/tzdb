@@ -37,7 +37,8 @@ uses
   DateUtils,
   Classes
   , Types
-{$IFDEF SUPPORTS_TDICTIONARY}, System.Generics.Collections{$ELSE}, Contnrs{$ENDIF}
+  , System.Generics.Collections
+  , System.Generics.Defaults
   , TimeSpan;
 
 
@@ -46,27 +47,163 @@ type
   ///  is not present in the bundled database or that its format is invalid.</summary>
   ETimeZoneInvalid = class(Exception);
 
-  TCompiledPeriodList = class({$IFDEF SUPPORTS_TDICTIONARY}TObjectList<TObject>{$ELSE}TObjectList{$ENDIF})
-  public
-    procedure SortByUntil;
-  end;
-
   ///  <summary>A timezone class implementation that retreives its data from the bundled database.</summary>
   ///  <remarks>This class inherits the standard <c>TTimeZone</c> class in Delphi XE.</remarks>
   TBundledTimeZone = class(TTimeZone)
+  type
+    { Day type. Specifies the "relative" day in a month }
+    TDayType = (dtFixed, dtLastOfMonth, tdNthOfMonth);
+
+    { Specifies the mode in which a time value is specified }
+    TTimeMode = (trLocal, trStandard, trUniversal);
+
+    { Stores the information about the relative days }
+    TRelativeDay = record
+      case FDayType: TDayType of
+        dtFixed:
+          (FFixedDay: Word);
+        dtLastOfMonth:
+          (FLastDayOfWeek: Word);
+        tdNthOfMonth:
+          (FNthDayOfWeek: Word;
+            FDayIndex: Word);
+    end;
+
+    { Pointer to a relative day }
+    PRelativeDay = ^TRelativeDay;
+
+    { Defines a rule used for DST changes }
+    TRule = record
+      FInMonth: Word; { The month (1 - 12) when DST change occurs }
+      FOnDay: PRelativeDay; { Pointer to a TRelativeDay value }
+      FAt: Int64; { Time, in seconds }
+      FAtMode: TTimeMode; { Time relation mode }
+      FOffset: Int64; { Offset from GMT in seconds }
+      FFmtPart: string;
+      { A symbolic string used later when building short TZ names }
+    end;
+
+    { Pointer to a rule }
+    PRule = ^TRule;
+
+    { Defines a rule that also has a validity date defined }
+    TYearBoundRule = record
+      FStart: Word; { The year in which the rule starts to apply }
+      FEnd: Word; { The year in which the rule ends to apply }
+      FRule: PRule; { A pointer to the actual rule }
+    end;
+
+    { Pointer to a year-bound rule entry }
+    PYearBoundRule = ^TYearBoundRule;
+
+    { Defines a rule family. If fact it is a set of rules combined under the same ID }
+    TRuleFamily = record
+      FCount: Integer; { Count of rule in the current family }
+      FFirstRule: PYearBoundRule;
+      { Pointer to the first rule in a static array defined previously }
+    end;
+
+    { A pointer to a rule family }
+    PRuleFamily = ^TRuleFamily;
+
+    { A period of some years (for a zone) that defines specific DST rules and offsets }
+    TPeriod = record
+      FOffset: Integer; { GMT offset in seconds for this period of time }
+      FRuleFamily: PRuleFamily;
+      { Pointer to the family if rules that apply to this period }
+      FFmtStr: string;
+      { Format string that will get translated in certain conditions }
+      FUntilYear, FUntilMonth: Word; { Period is valid until this Year/Month }
+      FUntilDay: PRelativeDay; { Period is valid until this Day in Year/Month }
+      FUntilTime: Int64;
+      FUntilTimeMode: TTimeMode; { Time relation mode }
+      { Period is valid until this time of day Day in Year/Month. In seconds }
+    end;
+
+    { Pointer to a TPeriod }
+    PPeriod = ^TPeriod;
+
+    { Defines a time-zone. }
+    TZone = record
+      FName: string; { Zone name (aka Europe/Romania, Europe/London etc) }
+      FCount: Integer; { Count of periods defined by this zone }
+      FFirstPeriod: PPeriod; { Pointer to the first TPeriod for this zone }
+    end;
+
+    { Pointer to a zone object }
+    PZone = ^TZone;
+
+    { Alias to a zone }
+    TZoneAlias = record
+      FName: string; { Name of the zone to alias }
+      FAliasTo: PZone; { Pointer to aliased zone }
+    end;
+
+  strict private type
+    TCompiledRule = class;
+
+    TCompiledRuleList = class(TObjectList<TCompiledRule>)
+    public
+      procedure SortByCompiledRuleDate;
+    end;
+
+    { Contains a compiled rule }
+    TCompiledRule = class
+    private
+      FRule: PRule;
+      FStartsOn: TDateTime;
+      FOffset: Int64;
+      FNext, FPrev: TCompiledRule;
+    public
+      constructor Create(const ARule: PRule; const AStartsOn: TDateTime; const AOffset: Int64);
+      function GetLocalTimeType(const ADateTime: TDateTime): TLocalTimeType;
+    end;
+
+    TCompiledPeriod = class;
+
+    TCompiledPeriodList = class(TObjectList<TCompiledPeriod>)
+    public
+      procedure SortByUntil;
+    end;
+
+    { Contains a compiled period (easier for lookup) }
+    TCompiledPeriod = class
+    private
+      FPeriod: PPeriod;
+      FFrom, FUntil: TDateTime;
+
+      { Year -> List of Rules for that year }
+      FRulesByYear: TObjectDictionary<Word, TCompiledRuleList>;
+
+      { Obtain the last rule that is active in a given year }
+      function GetLastRuleForYear(const AYear: Word): PRule;
+
+      { Compiles the Rules for a given year }
+      function CompileRulesForYear(const AYear: Word): TCompiledRuleList;
+    public
+      { Basic stuffs }
+      constructor Create(const APeriod: PPeriod; const AFrom, AUntil: TDateTime);
+      destructor Destroy(); override;
+
+      { Finds a matching rule }
+      function FindMatchingRule(const ADateTime: TDateTime): TCompiledRule;
+    end;
+
   private
-    FZone: Pointer;         { PZone }
-    FPeriods: TCompiledPeriodList;        { TCompiledPeriod }
+    FZone: PZone;
+    FPeriods: TCompiledPeriodList;
 
     { Compile periods into something useful }
     procedure CompilePeriods;
 
-    { Helpers }                                                  { TCompiledPeriod }       { TCompiledRule }
+    { Helpers }
     function GetPeriodAndRule(const ADateTime: TDateTime; out APeriod: TObject; out ARule: TObject): Boolean;
 
     procedure GetTZData(const ADateTime: TDateTime; out AOffset,
       ADstSave: Int64; out AType: TLocalTimeType; out ADisplayName, ADstDisplayName: string);
 
+    class function RelativeToDateTime(const AYear, AMonth: Word; const ARelativeDay: PRelativeDay; const ATimeOfDay: Int64): TDateTime;
+    class function FormatAbbreviation(const APeriod: PPeriod; const ARule: PRule): string;
   protected
     ///  <summary>Retrieves the standard bias, DST bias and the type of the given local time.</summary>
     ///  <param name="ADateTime">The local time for which to retrieve the data.</param>
@@ -118,95 +255,6 @@ resourcestring
   SNoBundledTZForName = 'Could not find any data for timezone "%s".';
   STimeZoneHasNoPeriod =
     'There is no matching period that matches date [%s] in timezone "%s".';
-
-type
-  { Day type. Specifies the "relative" day in a month }
-  TDayType = (dtFixed, dtLastOfMonth, tdNthOfMonth);
-
-  { Specifies the mode in which a time value is specified }
-  TTimeMode = (trLocal, trStandard, trUniversal);
-
-  { Stores the information about the relative days }
-  TRelativeDay = record
-    case FDayType: TDayType of
-      dtFixed:
-        (FFixedDay: Word);
-      dtLastOfMonth:
-        (FLastDayOfWeek: Word);
-      tdNthOfMonth:
-        (FNthDayOfWeek: Word;
-          FDayIndex: Word);
-  end;
-
-  { Pointer to a relative day }
-  PRelativeDay = ^TRelativeDay;
-
-  { Defines a rule used for DST changes }
-  TRule = record
-    FInMonth: Word; { The month (1 - 12) when DST change occurs }
-    FOnDay: PRelativeDay; { Pointer to a TRelativeDay value }
-    FAt: Int64; { Time, in seconds }
-    FAtMode: TTimeMode; { Time relation mode }
-    FOffset: Int64; { Offset from GMT in seconds }
-    FFmtPart: string;
-    { A symbolic string used later when building short TZ names }
-  end;
-
-  { Pointer to a rule }
-  PRule = ^TRule;
-
-  { Defines a rule that also has a validity date defined }
-  TYearBoundRule = record
-    FStart: Word; { The year in which the rule starts to apply }
-    FEnd: Word; { The year in which the rule ends to apply }
-    FRule: PRule; { A pointer to the actual rule }
-  end;
-
-  { Pointer to a year-bound rule entry }
-  PYearBoundRule = ^TYearBoundRule;
-
-  { Defines a rule family. If fact it is a set of rules combined under the same ID }
-  TRuleFamily = record
-    FCount: Integer; { Count of rule in the current family }
-    FFirstRule: PYearBoundRule;
-    { Pointer to the first rule in a static array defined previously }
-  end;
-
-  { A pointer to a rule family }
-  PRuleFamily = ^TRuleFamily;
-
-  { A period of some years (for a zone) that defines specific DST rules and offsets }
-  TPeriod = record
-    FOffset: Integer; { GMT offset in seconds for this period of time }
-    FRuleFamily: PRuleFamily;
-    { Pointer to the family if rules that apply to this period }
-    FFmtStr: string;
-    { Format string that will get translated in certain conditions }
-    FUntilYear, FUntilMonth: Word; { Period is valid until this Year/Month }
-    FUntilDay: PRelativeDay; { Period is valid until this Day in Year/Month }
-    FUntilTime: Int64;
-    FUntilTimeMode: TTimeMode; { Time relation mode }
-    { Period is valid until this time of day Day in Year/Month. In seconds }
-  end;
-
-  { Pointer to a TPeriod }
-  PPeriod = ^TPeriod;
-
-  { Defines a time-zone. }
-  TZone = record
-    FName: string; { Zone name (aka Europe/Romania, Europe/London etc) }
-    FCount: Integer; { Count of periods defined by this zone }
-    FFirstPeriod: PPeriod; { Pointer to the first TPeriod for this zone }
-  end;
-
-  { Pointer to a zone object }
-  PZone = ^TZone;
-
-  { Alias to a zone }
-  TZoneAlias = record
-    FName: string; { Name of the zone to alias }
-    FAliasTo: PZone; { Pointer to aliased zone }
-  end;
 
   {$I TZDB.inc}
 
@@ -263,7 +311,7 @@ begin
   end;
 end;
 
-function RelativeToDateTime(const AYear, AMonth: Word; const ARelativeDay: PRelativeDay; const ATimeOfDay: Int64): TDateTime;
+class function TBundledTimeZone.RelativeToDateTime(const AYear, AMonth: Word; const ARelativeDay: PRelativeDay; const ATimeOfDay: Int64): TDateTime;
 begin
   Result := 0;
 
@@ -281,7 +329,7 @@ begin
   Result := IncSecond(Result, ATimeOfDay);
 end;
 
-function FormatAbbreviation(const APeriod: PPeriod; const ARule: PRule): string;
+class function TBundledTimeZone.FormatAbbreviation(const APeriod: PPeriod; const ARule: PRule): string;
 begin
   if Pos('%s', APeriod^.FFmtStr) > 0 then
   begin
@@ -296,121 +344,23 @@ begin
     Result := APeriod^.FFmtStr;
 end;
 
-{$IFDEF SUPPORTS_TDICTIONARY}
-type
-  TBucketProc = procedure (AInfo, AItem, AData: Pointer; out AContinue: Boolean);
-
-  TBucketList = class(TDictionary<pointer, pointer>)
-  public
-    function ForEach(AProc: TBucketProc; AInfo: Pointer = nil): Boolean;
-    function Find(AItem: Pointer; out AData: Pointer): Boolean;
-  end;
-
-{ TBucketList }
-
-function TBucketList.ForEach(AProc: TBucketProc; AInfo: Pointer = nil): Boolean;
-var
-  pair : TPair<pointer, pointer>;
-begin
-  for pair in Self do begin
-    AProc(AInfo, pair.Key, pair.Value, Result);
-    if not Result then
-      Exit;
-  end;
-end;
-
-function TBucketList.Find(AItem: Pointer; out AData: Pointer): Boolean;
-begin
-  Result := TryGetValue(AItem, AData);
-end;
-
-{$ENDIF}
-
-type
-  TCompiledRule = class;
-  TCompiledPeriod = class;
-
-  TCompiledRuleList = class({$IFDEF SUPPORTS_TDICTIONARY}TObjectList<TCompiledRule>{$ELSE}TObjectList{$ENDIF})
-  public
-    procedure SortByCompiledRuleDate;
-  end;
-
-  { Contains a compiled rule }
-  TCompiledRule = class
-  private
-    FRule: PRule;
-    FStartsOn: TDateTime;
-    FOffset: Int64;
-    FNext, FPrev: TCompiledRule;
-
-  public
-    constructor Create(const ARule: PRule; const AStartsOn: TDateTime;
-      const AOffset: Int64);
-
-    function GetLocalTimeType(const ADateTime: TDateTime): TLocalTimeType;
-  end;
-
-  { Contains a compiled period (easier for lookup) }
-  TCompiledPeriod = class
-  private
-    FPeriod: PPeriod;
-    FFrom, FUntil: TDateTime;
-
-    { Year -> List of Rules for that year }
-    FRulesByYear: TBucketList;  { Word, TList<TCompiledRule> }
-
-    { Obtain the last rule that is active in a given year }
-    function GetLastRuleForYear(const AYear: Word): PRule;
-
-    { Compiles the Rules for a given year }
-    function CompileRulesForYear(const AYear: Word): TCompiledRuleList;
-  public
-    { Basic stuffs }
-    constructor Create(const APeriod: PPeriod; const AFrom, AUntil: TDateTime);
-    destructor Destroy(); override;
-
-    { Finds a matching rule }
-    function FindMatchingRule(const ADateTime: TDateTime): TCompiledRule;
-  end;
-
 var
   FTimeZoneCache: TStringList; { <String, TBundledTimeZone> }
 
-function CompiledPeriodComparison(ALeft, ARight: Pointer): Integer;
-begin
-  { Use standard DT comparison operation }
-  Result := CompareDateTime(TCompiledPeriod(ALeft).FUntil,
-    TCompiledPeriod(ARight).FUntil);
-end;
-
-function CompiledRuleComparison(ALeft, ARight: Pointer): Integer;
-begin
-  { Use standard DT comparison operation }
-  Result := CompareDateTime(TCompiledRule(ALeft).FStartsOn,
-    TCompiledRule(ARight).FStartsOn);
-end;
-
-procedure ForEachYearlyRule(AInfo, AItem, AData: Pointer; out AContinue: Boolean);
-begin
-  { Free the value list }
-  TList(AData).Free;
-  AContinue := True;
-end;
-
 { TCompiledPeriodList }
 
-procedure TCompiledPeriodList.SortByUntil;
-  begin
-{$IFDEF SUPPORTS_TDICTIONARY}
-
-{$ELSE}
-  Sort(@CompiledPeriodComparison);
-{$ENDIF}
+procedure TBundledTimeZone.TCompiledPeriodList.SortByUntil;
+begin
+  Sort(TDelegatedComparer<TCompiledPeriod>.Create(
+          function (const ALeft, ARight: TCompiledPeriod) : integer
+          begin
+            Result := CompareDateTime(ALeft.FUntil, ARight.FUntil);
+          end));
 end;
 
 { TCompiledPeriod }
 
-function TCompiledPeriod.CompileRulesForYear(const AYear: Word): TCompiledRuleList;
+function TBundledTimeZone.TCompiledPeriod.CompileRulesForYear(const AYear: Word): TCompiledRuleList;
 var
   LCurrRule: PYearBoundRule;
   LLastYearRule: PRule;
@@ -481,32 +431,26 @@ begin
 
   { Register the new list into the dictionary }
 {$WARNINGS OFF}
-  FRulesByYear.Add(Pointer(AYear), Result);
+  FRulesByYear.Add(AYear, Result);
 {$WARNINGS ON}
 end;
 
-constructor TCompiledPeriod.Create(const APeriod: PPeriod; const AFrom, AUntil: TDateTime);
+constructor TBundledTimeZone.TCompiledPeriod.Create(const APeriod: PPeriod; const AFrom, AUntil: TDateTime);
 begin
   FPeriod := APeriod;
   FUntil := AUntil;
   FFrom := AFrom;
 
-  FRulesByYear := TBucketList.Create();
+  FRulesByYear := TObjectDictionary<Word, TCompiledRuleList>.Create([doOwnsValues]);
 end;
 
-destructor TCompiledPeriod.Destroy;
+destructor TBundledTimeZone.TCompiledPeriod.Destroy;
 begin
-  { Free each rule }
-  if Assigned(FRulesByYear) then
-  begin
-    FRulesByYear.ForEach(ForEachYearlyRule);
-    FRulesByYear.Free;
-  end;
-
+  FRulesByYear.Free;
   inherited;
 end;
 
-function TCompiledPeriod.FindMatchingRule(const ADateTime: TDateTime): TCompiledRule;
+function TBundledTimeZone.TCompiledPeriod.FindMatchingRule(const ADateTime: TDateTime): TCompiledRule;
 var
   LYear: Word;
   LCompiledList: TCompiledRuleList;
@@ -520,7 +464,7 @@ begin
   try
 {$WARNINGS OFF}
     { Check if we have a cached list of matching rules for this date's year }
-    if not FRulesByYear.Find(Pointer(LYear), Pointer(LCompiledList)) then
+    if not FRulesByYear.TryGetValue(LYear, LCompiledList) then
       LCompiledList := CompileRulesForYear(LYear);
 {$WARNINGS ON}
 
@@ -538,7 +482,7 @@ begin
   end;
 end;
 
-function TCompiledPeriod.GetLastRuleForYear(const AYear: Word): PRule;
+function TBundledTimeZone.TCompiledPeriod.GetLastRuleForYear(const AYear: Word): PRule;
 var
   LCurrRule: PYearBoundRule;
   LAbsolute, LBestChoice: TDateTime;
@@ -579,18 +523,18 @@ end;
 
 { TCompiledRuleList }
 
-procedure TCompiledRuleList.SortByCompiledRuleDate;
+procedure TBundledTimeZone.TCompiledRuleList.SortByCompiledRuleDate;
 begin
-{$IFDEF SUPPORTS_TDICTIONARY}
-
-{$ELSE}
-  Sort(@CompiledRuleComparison);
-{$ENDIF}
+  Sort(TDelegatedComparer<TCompiledRule>.Create(
+          function (const ALeft, ARight: TCompiledRule) : integer
+          begin
+            Result := CompareDateTime(ALeft.FStartsOn, ARight.FStartsOn);
+          end));
 end;
 
 { TCompiledRule }
 
-constructor TCompiledRule.Create(const ARule: PRule;
+constructor TBundledTimeZone.TCompiledRule.Create(const ARule: PRule;
   const AStartsOn: TDateTime; const AOffset: Int64);
 begin
   FRule := ARule;
@@ -598,7 +542,7 @@ begin
   FOffset := AOffset;
 end;
 
-function TCompiledRule.GetLocalTimeType(const ADateTime: TDateTime): TLocalTimeType;
+function TBundledTimeZone.TCompiledRule.GetLocalTimeType(const ADateTime: TDateTime): TLocalTimeType;
 begin
   { Try with the ending of the rule }
   if (FNext <> nil) and (FNext.FOffset > FOffset) and

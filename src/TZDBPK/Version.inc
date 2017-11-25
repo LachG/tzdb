@@ -15,9 +15,6 @@
       {$IF RTLVersion >= 21}
         {$DEFINE SUPPORTS_TTIMESPAN}
       {$IFEND}
-      {$IF RTLVersion >= 22}
-        {$DEFINE SUPPORTS_TDICTIONARY}
-      {$IFEND}
     {$IFEND}
   {$ENDIF}
 
