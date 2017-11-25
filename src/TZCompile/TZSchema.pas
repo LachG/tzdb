@@ -914,7 +914,7 @@ begin
       ('  { This array contains the definitions of relative days used later on in the rules. }'
       );
     LWriter.WriteLine('  CRelativeDays: array[0 .. ' + IntToStr(FDays.Count - 1)
-        + '] of TRelativeDay = (');
+        + '] of TBundledTimeZone.TRelativeDay = (');
 
     for I := 0 to FDays.Count - 1 do
     begin
@@ -951,7 +951,7 @@ begin
       ('  { This array contains the definitions of DST rules. Used by rule families. }'
       );
     LWriter.WriteLine('  CRules: array[0 .. ' + IntToStr(FRules.Count - 1) +
-        '] of TRule = (');
+        '] of TBundledTimeZone.TRule = (');
 
     for I := 0 to FRules.Count - 1 do
     begin
@@ -991,7 +991,7 @@ begin
 
       LWriter.WriteLine('  { Date-bound rules for ' + LFam.FName + ' family }');
       LWriter.WriteLine('  CFamily_' + IntToStr(LFam.FIndexInFile) + '_Arr: array[0 .. ' +
-          IntToStr(LFam.FRules.Count - 1) + '] of TYearBoundRule = (');
+          IntToStr(LFam.FRules.Count - 1) + '] of TBundledTimeZone.TYearBoundRule = (');
 
       { Sort the rule array in desc order to allow simpler lookup }
 
@@ -1018,7 +1018,7 @@ begin
       ('  { This array contains rule families. }'
       );
     LWriter.WriteLine('  CRuleFamilies: array[0 .. ' + IntToStr(FRuleFamilies.Count - LGhosts - 1) +
-        '] of TRuleFamily = (');
+        '] of TBundledTimeZone.TRuleFamily = (');
 
     for I := 0 to FRuleFamilies.Count - 1 do
     begin
@@ -1061,7 +1061,7 @@ begin
 
       LWriter.WriteLine('  { Time periods for ' + LZone.FName + ' zone }');
       LWriter.WriteLine('  CZone_' + IntToStr(I) + '_Arr: array[0 .. ' +
-          IntToStr(LZone.FLines.Count - 1) + '] of TPeriod = (');
+          IntToStr(LZone.FLines.Count - 1) + '] of TBundledTimeZone.TPeriod = (');
 
       for X := 0 to LZone.FLines.Count - 1 do
       begin
@@ -1098,7 +1098,7 @@ begin
       ('  { This array contains zones. }'
       );
     LWriter.WriteLine('  CZones: array[0 .. ' + IntToStr(FZones.Count - LGhosts - 1) +
-        '] of TZone = (');
+        '] of TBundledTimeZone.TZone = (');
 
     for I := 0 to FZones.Count - 1 do
     begin
@@ -1137,7 +1137,7 @@ begin
       ('  { This array contains zone aliases. }'
       );
     LWriter.WriteLine('  CAliases: array[0 .. ' + IntToStr(LAliasList.Count - LGhosts - 1) +
-        '] of TZoneAlias = (');
+        '] of TBundledTimeZone.TZoneAlias = (');
 
     for I := 0 to LAliasList.Count - 1 do
     begin
