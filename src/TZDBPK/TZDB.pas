@@ -25,10 +25,6 @@
 * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 *)
 
-{ General conditional section. Checks for specific RTL "features" shared across
-  FreePascal and different versions of Delphi. Recommended version is Delphi XE though ... }
-
-{$INCLUDE 'Version.inc'}
 unit TZDB;
 
 interface
